@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,7 @@ interface Meal {
 }
 
 export default function DailyLog() {
+  const { data: session, status } = useSession();
   const [meals, setMeals] = useState<Meal[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -35,36 +37,32 @@ export default function DailyLog() {
   });
   const [profile, setProfile] = useState<any>(null);
 
-  // read user/profile safely (client-side)
+  // read user/profile from the NextAuth session (not localStorage)
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (status === "loading") return;
 
-    const storedUser = localStorage.getItem("user");
-    if (!storedUser) {
+    const email = session?.user?.email;
+    if (!email) {
       setLoading(false);
       return;
     }
 
-    const parsedUser = JSON.parse(storedUser);
-    if (parsedUser?.email) {
-      fetchMeals(parsedUser.email);
-      // try to load profile (profile route stores daily info)
-      const profileRaw = localStorage.getItem("profile");
-      if (profileRaw) {
-        try {
-          setProfile(JSON.parse(profileRaw));
-        } catch {
-          setProfile(null);
-        }
-      } else {
-        // fetch profile from server as fallback
-        fetchProfile(parsedUser.email);
+    fetchMeals(email);
+    // try to load profile (profile route stores daily info)
+    const profileRaw =
+      typeof window !== "undefined" ? localStorage.getItem("profile") : null;
+    if (profileRaw) {
+      try {
+        setProfile(JSON.parse(profileRaw));
+      } catch {
+        setProfile(null);
       }
     } else {
-      setLoading(false);
+      // fetch profile from server as fallback
+      fetchProfile(email);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+     
+  }, [session, status]);
 
   const fetchProfile = async (email: string) => {
     try {
@@ -103,13 +101,11 @@ export default function DailyLog() {
       return;
     }
 
-    const storedUser =
-      typeof window !== "undefined" ? localStorage.getItem("user") : null;
-    if (!storedUser) {
+    const email = session?.user?.email;
+    if (!email) {
       toast.error("User not found. Please login again.");
       return;
     }
-    const { email } = JSON.parse(storedUser);
 
     // sanitize numeric inputs
     const mealToSave: Meal = {
@@ -161,13 +157,11 @@ export default function DailyLog() {
   // Delete meal
   const handleDelete = async (id?: string) => {
     if (!id) return;
-    const storedUser =
-      typeof window !== "undefined" ? localStorage.getItem("user") : null;
-    if (!storedUser) {
+    const email = session?.user?.email;
+    if (!email) {
       toast.error("User not found.");
       return;
     }
-    const { email } = JSON.parse(storedUser);
 
     // optimistic removal
     const prev = meals;

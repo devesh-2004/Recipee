@@ -50,6 +50,7 @@ const Profile = () => {
     } else {
       router.push("/login");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, session]);
 
   // ✅ Fetch profile from MongoDB
@@ -87,6 +88,7 @@ const Profile = () => {
         toast.error("Failed to save details.");
       }
     } catch (err) {
+      console.error(err);
       toast.error("Error saving data.");
     } finally {
       setIsSaving(false);
@@ -101,7 +103,7 @@ const Profile = () => {
     const heightM = parseFloat(height) / 100;
     const bmi = (parseFloat(weight) / (heightM * heightM)).toFixed(1);
 
-    let bmr =
+    const bmr =
       gender === "male"
         ? 10 * weight + 6.25 * height - 5 * age + 5
         : 10 * weight + 6.25 * height - 5 * age - 161;

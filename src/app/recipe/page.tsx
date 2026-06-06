@@ -244,7 +244,7 @@ export default function RecipePage() {
     if (!raw) return;
     setMessages((p) => [
       ...p,
-      { id: `${Date.now()}-u`, type: "user", content: raw },
+      { id: `${Date.now()}-u-${Math.random().toString(36).substring(7)}`, type: "user", content: raw },
     ]);
     setInputValue("");
     setIsLoading(true);
@@ -287,7 +287,7 @@ export default function RecipePage() {
       setMessages((p) => [
         ...p,
         {
-          id: `${Date.now()}-b`,
+          id: `${Date.now()}-b-${Math.random().toString(36).substring(7)}`,
           type: "bot",
           content: recipes.length
             ? `Top ${recipes.length} recipes for "${query}"`

@@ -1,21 +1,22 @@
 import { NextResponse } from "next/server";
 import clientPromise from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
+import { getCurrentUser, unauthorized, forbidden, resolveTargetEmail } from "@/lib/rbac";
 
 const DB_NAME = "cookaro"; // ✅ keep same DB everywhere
 const COLLECTION = "dailyLogs";
 
 // ================================
-// GET — Fetch meals for TODAY
+// GET — Fetch meals for TODAY (own; admins may pass ?email=)
 // ================================
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const email = searchParams.get("email");
+    const caller = await getCurrentUser();
+    if (!caller) return unauthorized();
 
-    if (!email) {
-      return NextResponse.json({ error: "Email is required" }, { status: 400 });
-    }
+    const { searchParams } = new URL(request.url);
+    const email = resolveTargetEmail(caller, searchParams.get("email"));
+    if (!email) return forbidden();
 
     const client = await clientPromise;
     const db = client.db(DB_NAME);
@@ -44,17 +45,22 @@ export async function GET(request: Request) {
 }
 
 // ================================
-// POST — Add a new meal entry
+// POST — Add a new meal entry (scoped to the caller)
 // ================================
 export async function POST(req: Request) {
   try {
+    const caller = await getCurrentUser();
+    if (!caller) return unauthorized();
+
     const body = await req.json();
+    const { name, type } = body;
 
-    const { email, name, type } = body;
+    const email = resolveTargetEmail(caller, body.email);
+    if (!email) return forbidden();
 
-    if (!email || !name || !type) {
+    if (!name || !type) {
       return NextResponse.json(
-        { error: "email, name, and type are required" },
+        { error: "name and type are required" },
         { status: 400 }
       );
     }
@@ -64,6 +70,7 @@ export async function POST(req: Request) {
 
     const entry = {
       ...body,
+      email, // enforce the resolved owner, ignore any spoofed email
       date: new Date(), // for filtering by day
       timestamp: new Date().toISOString(), // for UI
       createdAt: new Date(),
@@ -79,10 +86,13 @@ export async function POST(req: Request) {
 }
 
 // ================================
-// DELETE — Remove ONE meal
+// DELETE — Remove ONE meal (only if it belongs to the caller)
 // ================================
 export async function DELETE(req: Request) {
   try {
+    const caller = await getCurrentUser();
+    if (!caller) return unauthorized();
+
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
 
@@ -93,7 +103,18 @@ export async function DELETE(req: Request) {
     const client = await clientPromise;
     const db = client.db(DB_NAME);
 
-    await db.collection(COLLECTION).deleteOne({ _id: new ObjectId(id) });
+    // Non-admins can only delete their own entries.
+    const filter: Record<string, any> = { _id: new ObjectId(id) };
+    if (caller.role !== "admin") filter.email = caller.email;
+
+    const result = await db.collection(COLLECTION).deleteOne(filter);
+
+    if (result.deletedCount === 0) {
+      return NextResponse.json(
+        { error: "Entry not found or not permitted" },
+        { status: 404 }
+      );
+    }
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (err) {

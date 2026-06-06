@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import axios from "axios";
 import { motion } from "framer-motion";
 import { Loader2, Apple, Info } from "lucide-react";
@@ -16,22 +17,22 @@ import {
 import Header from "@/components/Header";
 
 export default function NutritionAnalyzer() {
+  const { data: session } = useSession();
   const [query, setQuery] = useState("");
   const [nutrition, setNutrition] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
+  const [, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const COLORS = ["#14c38e", "#ff6b6b", "#4d96ff", "#f5b400"];
 
-  // Load user profile
+  // Load user profile (email comes from the NextAuth session, not localStorage)
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      const email = JSON.parse(storedUser).email;
+    const email = session?.user?.email;
+    if (email) {
       fetchProfile(email);
     }
-  }, []);
+  }, [session]);
 
   const fetchProfile = async (email: string) => {
     try {
@@ -40,8 +41,6 @@ export default function NutritionAnalyzer() {
 
       if (data) {
         const { age, gender, height, weight, activityLevel } = data;
-
-        const heightM = height / 100;
 
         const bmr =
           gender === "male"
@@ -71,8 +70,8 @@ export default function NutritionAnalyzer() {
       return;
     }
 
-    const user = JSON.parse(localStorage.getItem("user") || "{}");
-    if (!user.email) {
+    const email = session?.user?.email;
+    if (!email) {
       setError("Please login to analyze nutrition.");
       return;
     }
@@ -84,7 +83,7 @@ export default function NutritionAnalyzer() {
     try {
       const res = await axios.post("/api/nutrition", {
         query,
-        email: user.email,
+        email,
       });
 
       if (res.data?.calories) {

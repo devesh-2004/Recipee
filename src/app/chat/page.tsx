@@ -51,7 +51,6 @@ export default function ChatPage() {
     const newMsg = { role: "user", text: input };
     setMessages((prev) => [...prev, newMsg]);
 
-
     setInput("");
     setLoading(true);
 
@@ -73,6 +72,7 @@ export default function ChatPage() {
       setMessages((prev) => [...prev, botReply]);
 
     } catch (error) {
+      console.error(error);
       setMessages((prev) => [
         ...prev,
         { role: "bot", text: "⚠️ Unable to connect. Please try again." },

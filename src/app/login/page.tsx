@@ -2,13 +2,22 @@
 
 import dynamic from "next/dynamic";
 import { useSession, signIn } from "next-auth/react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-
-const Particles = dynamic(() => import("react-tsparticles"), { ssr: false });
+import Particles, { initParticlesEngine } from "@tsparticles/react";
+import { loadSlim } from "@tsparticles/slim";
 
 export default function LoginPage() {
+  const [init, setInit] = useState(false);
+
+  useEffect(() => {
+    initParticlesEngine(async (engine) => {
+      await loadSlim(engine);
+    }).then(() => {
+      setInit(true);
+    });
+  }, []);
   const { data: session, status } = useSession();
   const router = useRouter();
 
@@ -19,11 +28,7 @@ export default function LoginPage() {
     }
   }, [status, router]);
 
-  // FIXED PARTICLES INIT
-  const particlesInit = async (engine: any) => {
-    const { loadSlim } = await import("tsparticles-slim");
-    await loadSlim(engine);
-  };
+
 
   const particlesOptions = {
     fullScreen: { enable: true, zIndex: -1 },
@@ -40,7 +45,7 @@ export default function LoginPage() {
   if (!session)
     return (
       <div className="flex flex-col items-center justify-center h-screen relative bg-gradient-to-br from-black via-zinc-900 to-black text-white">
-        <Particles init={particlesInit} options={particlesOptions} />
+        {init && <Particles id="tsparticles" options={particlesOptions} />}
 
         <motion.h1
           initial={{ opacity: 0, y: -20 }}
@@ -59,12 +64,13 @@ export default function LoginPage() {
           <img
             src="https://www.svgrepo.com/show/475656/google-color.svg"
             className="w-6 h-6"
+            alt="Google Logo"
           />
           Sign in with Google
         </motion.button>
 
         <p className="absolute bottom-6 text-sm text-gray-400">
-          Crafted with ❤️ by Manoj Tarad
+          Crafted with ❤️ by Devesh Purohit
         </p>
       </div>
     );

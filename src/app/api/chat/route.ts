@@ -1,19 +1,18 @@
 import { NextResponse } from "next/server";
+import { getCurrentUser, unauthorized } from "@/lib/rbac";
+import { groqChat } from "@/lib/groq";
 
 export async function POST(req: Request) {
   try {
+    // 🔒 RBAC: only authenticated users may use the AI chat.
+    const user = await getCurrentUser();
+    if (!user) return unauthorized();
+
     const { message, userProfile } = await req.json();
 
     if (!message) {
       return NextResponse.json({ reply: "Message cannot be empty." });
     }
-
-    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-    if (!GEMINI_API_KEY) {
-      return NextResponse.json({ reply: "Server error: API key missing." });
-    }
-
-    const GEMINI_URL = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
     const profileText = userProfile
       ? `User Profile:
@@ -54,49 +53,33 @@ GUIDELINES:
 4. **Formatting**: Use Markdown. Use **bold** for emphasis. Use lists for readability.
 `;
 
-    // --- Retry Logic ---
-    let attempts = 0;
+    // --- Retry Logic (Groq can occasionally rate-limit) ---
     const maxAttempts = 3;
-
-    while (attempts < maxAttempts) {
-      attempts++;
-
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        const response = await fetch(GEMINI_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    text: `${SYSTEM_PROMPT}\n\n${profileText}\n\nUser: ${message}`,
-                  },
-                ],
-              },
-            ],
-          }),
+        const reply = await groqChat([
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: `${profileText}\n\nUser: ${message}` },
+        ]);
+
+        return NextResponse.json({
+          reply: reply || "I couldn't generate a response.",
         });
+      } catch (error: any) {
+        const msg = String(error?.message || "").toLowerCase();
+        const retryable =
+          msg.includes("rate") ||
+          msg.includes("overloaded") ||
+          msg.includes("busy") ||
+          msg.includes("timeout");
 
-        const data = await response.json();
-
-        if (data.error) {
-          const msg = data.error.message.toLowerCase();
-          if (msg.includes("overloaded") || msg.includes("busy")) {
-            // Retry
-            await new Promise((res) => setTimeout(res, attempts * 500));
-            continue;
-          }
-          return NextResponse.json({ reply: "AI Error. Try again later." });
+        if (retryable && attempt < maxAttempts) {
+          await new Promise((res) => setTimeout(res, attempt * 500));
+          continue;
         }
 
-        const reply =
-          data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-          "I couldn't generate a response.";
-
-        return NextResponse.json({ reply });
-      } catch (error) {
-        await new Promise((res) => setTimeout(res, attempts * 400));
+        console.error("❌ Groq chat error:", error?.message);
+        return NextResponse.json({ reply: "AI Error. Try again later." });
       }
     }
 
@@ -105,6 +88,7 @@ GUIDELINES:
         "⚠️ AI is overloaded right now. Please wait a moment and try again.",
     });
   } catch (err) {
+    console.error(err);
     return NextResponse.json({
       reply: "Server error. Please try again.",
     });

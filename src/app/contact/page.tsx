@@ -5,20 +5,22 @@ import { Mail, Phone, MapPin, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import Particles from "react-tsparticles";
-import { loadFull } from "tsparticles";
-import { useCallback, useState } from "react";
+import Particles, { initParticlesEngine } from "@tsparticles/react";
+import { loadSlim } from "@tsparticles/slim";
+import { useCallback, useState, useEffect } from "react";
 import { toast } from "sonner";
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
 
 export default function ContactClient() {
-  const particlesInit = useCallback(async (engine: any) => {
-    try {
-      await loadFull(engine);
-    } catch (err) {
-      console.warn("Particles skipped:", err);
-    }
+  const [init, setInit] = useState(false);
+
+  useEffect(() => {
+    initParticlesEngine(async (engine) => {
+      await loadSlim(engine);
+    }).then(() => {
+      setInit(true);
+    });
   }, []);
 
   const [form, setForm] = useState({
@@ -53,6 +55,7 @@ export default function ContactClient() {
         toast.error(data.error || "Failed to send message.");
       }
     } catch (err) {
+      console.error(err);
       toast.error("Something went wrong!");
     } finally {
       setLoading(false);
@@ -64,22 +67,23 @@ export default function ContactClient() {
     <Header />
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-orange-50 to-amber-50 text-white">
       {/* 🌌 Background Particles */}
-      <Particles
-        id="tsparticles"
-        init={particlesInit}
-        options={{
-          background: { color: "transparent" },
-          fpsLimit: 60,
-          particles: {
-            number: { value: 30 },
-            color: { value: "#f59e0b" },
-            opacity: { value: 0.25 },
-            size: { value: 3 },
-            move: { enable: true, speed: 1, random: true },
-          },
-        }}
-        className="absolute inset-0 z-0"
-      />
+      {init && (
+        <Particles
+          id="tsparticles"
+          options={{
+            background: { color: "transparent" },
+            fpsLimit: 60,
+            particles: {
+              number: { value: 30 },
+              color: { value: "#f59e0b" },
+              opacity: { value: 0.25 },
+              size: { value: 3 },
+              move: { enable: true, speed: 1, random: true },
+            },
+          }}
+          className="absolute inset-0 z-0"
+        />
+      )}
 
       {/* ✉️ Contact Section */}
       <motion.section
@@ -110,12 +114,12 @@ export default function ContactClient() {
               {
                 icon: Mail,
                 title: "Email",
-                text: "manojtarad65@gmail.com",
+                text: "deveshpurohit275@gmail.com",
               },
               {
                 icon: Phone,
                 title: "Phone",
-                text: "+91 7877018453",
+                text: "+91 9461042383",
               },
               {
                 icon: MapPin,

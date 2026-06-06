@@ -1,30 +1,34 @@
 import { NextResponse } from "next/server";
 import clientPromise from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
+import { getCurrentUser, unauthorized, forbidden, resolveTargetEmail } from "@/lib/rbac";
+
+const DB_NAME = "cookaro";
+const COLLECTION = "mealHistory";
 
 // =============================
-// GET — Fetch History (with pagination)
+// GET — Fetch History (own; admins may pass ?email=), with pagination
 // =============================
 export async function GET(req: Request) {
   try {
+    const caller = await getCurrentUser();
+    if (!caller) return unauthorized();
+
     const url = new URL(req.url);
-    const email = url.searchParams.get("email");
+    const email = resolveTargetEmail(caller, url.searchParams.get("email"));
+    if (!email) return forbidden();
 
     const page = Number(url.searchParams.get("page") || 1);
     const limit = Number(url.searchParams.get("limit") || 10);
     const skip = (page - 1) * limit;
 
-    if (!email) {
-      return NextResponse.json({ error: "Missing email" }, { status: 400 });
-    }
-
     const client = await clientPromise;
-    const db = client.db("cookaro");
+    const db = client.db(DB_NAME);
 
-    const total = await db.collection("mealHistory").countDocuments({ email });
+    const total = await db.collection(COLLECTION).countDocuments({ email });
 
     const history = await db
-      .collection("mealHistory")
+      .collection(COLLECTION)
       .find({ email })
       .sort({ timestamp: -1 })
       .skip(skip)
@@ -47,22 +51,24 @@ export async function GET(req: Request) {
 }
 
 // =============================
-// POST — Save recipe OR nutrition
+// POST — Save recipe OR nutrition (scoped to the caller)
 // =============================
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { email, recipe, query, nutrition } = body;
+    const caller = await getCurrentUser();
+    if (!caller) return unauthorized();
 
-    if (!email) {
-      return NextResponse.json({ error: "Email is required" }, { status: 400 });
-    }
+    const body = await req.json();
+    const { recipe, query, nutrition } = body;
+
+    const email = resolveTargetEmail(caller, body.email);
+    if (!email) return forbidden();
 
     const client = await clientPromise;
-    const db = client.db("cookaro");
+    const db = client.db(DB_NAME);
 
     if (recipe) {
-      await db.collection("mealHistory").insertOne({
+      await db.collection(COLLECTION).insertOne({
         email,
         type: "recipe",
         recipe,
@@ -78,7 +84,7 @@ export async function POST(req: Request) {
     }
 
     if (nutrition) {
-      await db.collection("mealHistory").insertOne({
+      await db.collection(COLLECTION).insertOne({
         email,
         type: "nutrition",
         nutrition,
@@ -101,10 +107,13 @@ export async function POST(req: Request) {
 }
 
 // =============================
-// PATCH — Toggle Favorite
+// PATCH — Toggle Favorite (only on the caller's own entries)
 // =============================
 export async function PATCH(req: Request) {
   try {
+    const caller = await getCurrentUser();
+    if (!caller) return unauthorized();
+
     const { id, favorite } = await req.json();
 
     if (!id) {
@@ -112,11 +121,21 @@ export async function PATCH(req: Request) {
     }
 
     const client = await clientPromise;
-    const db = client.db("cookaro");
+    const db = client.db(DB_NAME);
 
-    await db
-      .collection("mealHistory")
-      .updateOne({ _id: new ObjectId(id) }, { $set: { favorite } });
+    const filter: Record<string, any> = { _id: new ObjectId(id) };
+    if (caller.role !== "admin") filter.email = caller.email;
+
+    const result = await db
+      .collection(COLLECTION)
+      .updateOne(filter, { $set: { favorite } });
+
+    if (result.matchedCount === 0) {
+      return NextResponse.json(
+        { error: "Entry not found or not permitted" },
+        { status: 404 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
@@ -129,21 +148,26 @@ export async function PATCH(req: Request) {
 }
 
 // =============================
-// DELETE — Remove Single OR All History
+// DELETE — Remove Single OR All History (scoped to the caller)
 // =============================
 export async function DELETE(req: Request) {
   try {
+    const caller = await getCurrentUser();
+    if (!caller) return unauthorized();
+
     const url = new URL(req.url);
     const id = url.searchParams.get("id");
     const all = url.searchParams.get("all");
-    const email = url.searchParams.get("email");
 
     const client = await clientPromise;
-    const db = client.db("cookaro");
+    const db = client.db(DB_NAME);
 
     //=========== DELETE ALL ===========
-    if (all === "true" && email) {
-      await db.collection("mealHistory").deleteMany({ email });
+    if (all === "true") {
+      const email = resolveTargetEmail(caller, url.searchParams.get("email"));
+      if (!email) return forbidden();
+
+      await db.collection(COLLECTION).deleteMany({ email });
       return NextResponse.json({
         success: true,
         message: "All history cleared",
@@ -155,7 +179,17 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "Missing ID" }, { status: 400 });
     }
 
-    await db.collection("mealHistory").deleteOne({ _id: new ObjectId(id) });
+    const filter: Record<string, any> = { _id: new ObjectId(id) };
+    if (caller.role !== "admin") filter.email = caller.email;
+
+    const result = await db.collection(COLLECTION).deleteOne(filter);
+
+    if (result.deletedCount === 0) {
+      return NextResponse.json(
+        { error: "Entry not found or not permitted" },
+        { status: 404 }
+      );
+    }
 
     return NextResponse.json({ success: true, message: "Entry deleted" });
   } catch (error) {

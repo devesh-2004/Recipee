@@ -4,20 +4,22 @@ import dynamic from "next/dynamic";
 import { useSession, signIn } from "next-auth/react";
 import { motion } from "framer-motion";
 
-// Load tsparticles dynamically to avoid SSR errors
-const Particles = dynamic(() => import("react-tsparticles"), { ssr: false });
+import { useEffect, useState } from "react";
+import Particles, { initParticlesEngine } from "@tsparticles/react";
+import { loadSlim } from "@tsparticles/slim";
 
 export default function LoginPage() {
   const { data: session } = useSession();
 
-  const particlesInit = async (engine: any) => {
-    try {
-      const mod = await import("tsparticles");
-      if (mod?.loadFull) await mod.loadFull(engine);
-    } catch (err) {
-      console.warn("tsparticles init failed:", err);
-    }
-  };
+  const [init, setInit] = useState(false);
+
+  useEffect(() => {
+    initParticlesEngine(async (engine) => {
+      await loadSlim(engine);
+    }).then(() => {
+      setInit(true);
+    });
+  }, []);
 
   const particlesOptions = {
     fullScreen: { enable: true, zIndex: -1 },
@@ -52,7 +54,7 @@ export default function LoginPage() {
   return session ? (
     // ✅ After Login — Welcome Page
     <div className="flex items-center justify-center h-screen relative overflow-hidden bg-gradient-to-br from-[#0a0a0a] via-[#1a1a1a] to-[#0a0a0a] text-white">
-      <Particles init={particlesInit} options={particlesOptions} />
+      {init && <Particles id="tsparticles" options={particlesOptions} />}
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -88,7 +90,7 @@ export default function LoginPage() {
   ) : (
     // ✅ Login Page (Before Login)
     <div className="flex flex-col items-center justify-center h-screen relative overflow-hidden bg-gradient-to-br from-[#0a0a0a] via-[#1a1a1a] to-[#0a0a0a] text-white">
-      <Particles init={particlesInit} options={particlesOptions} />
+      {init && <Particles id="tsparticles" options={particlesOptions} />}
 
       <motion.div
         initial={{ opacity: 0, y: -30 }}

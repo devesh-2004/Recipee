@@ -8,7 +8,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ChefHat,
-  Sparkles,
   Clock,
   Users,
   ChartBarStackedIcon,
@@ -18,7 +17,6 @@ import {
   Quote,
 } from "lucide-react";
 import { toast } from "sonner";
-import Header from "./Header";
 
 import { useSession } from "next-auth/react";
 

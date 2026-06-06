@@ -1,83 +1,73 @@
 // src/app/api/nutrition/route.ts
 import { NextResponse } from "next/server";
-import axios from "axios";
+import { getCurrentUser, unauthorized } from "@/lib/rbac";
+import { groqChat } from "@/lib/groq";
+
+// Extract the first JSON object from a model response, tolerating
+// markdown code fences and surrounding prose.
+function parseNutritionJSON(text: string) {
+  if (!text) return null;
+  const cleaned = text.replace(/```json/gi, "").replace(/```/g, "").trim();
+  const match = cleaned.match(/\{[\s\S]*\}/);
+  if (!match) return null;
+  try {
+    return JSON.parse(match[0]);
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(req: Request) {
   try {
+    // 🔒 RBAC: only authenticated users may analyze nutrition.
+    const user = await getCurrentUser();
+    if (!user) return unauthorized();
+
     const { query } = await req.json();
 
     if (!query || query.trim() === "") {
       return NextResponse.json({ error: "Query is required" }, { status: 400 });
     }
 
-    // ⭐ Ensure API keys exist
-    if (!process.env.NUTRITIONIX_APP_ID || !process.env.NUTRITIONIX_APP_KEY) {
-      console.error("❌ Nutritionix API keys are missing");
-      return NextResponse.json(
-        { error: "Server API keys missing" },
-        { status: 500 }
-      );
-    }
+    const prompt = `Estimate the TOTAL combined nutrition for this meal: "${query}".
+Respond with ONLY a raw JSON object using this exact shape:
+{"calories": <number kcal>, "protein": <number grams>, "fat": <number grams>, "carbs": <number grams>}
+All values must be plain integers. If the input is not food, return all zeros.`;
 
-    // ⭐ Call Nutritionix API
-    let response;
-    try {
-      response = await axios.post(
-        "https://trackapi.nutritionix.com/v2/natural/nutrients",
-        { query },
+    const text = await groqChat(
+      [
         {
-          headers: {
-            "x-app-id": process.env.NUTRITIONIX_APP_ID,
-            "x-app-key": process.env.NUTRITIONIX_APP_KEY,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-    } catch (apiError: any) {
-      if (apiError.response?.status === 401 || apiError.response?.status === 403) {
-        console.warn("⚠️ Nutritionix API Unauthorized. Using MOCK data.");
-        return NextResponse.json({
-          calories: 350,
-          protein: 25,
-          fat: 12,
-          carbs: 40,
-          mock: true
-        }, { status: 200 });
-      }
-      throw apiError;
-    }
+          role: "system",
+          content:
+            "You are a nutrition database that returns only valid JSON nutrition estimates.",
+        },
+        { role: "user", content: prompt },
+      ],
+      { temperature: 0.2, json: true }
+    );
 
-    const foods = response?.data?.foods;
+    const parsed = parseNutritionJSON(text);
 
-    // ⭐ No foods found
-    if (!foods || foods.length === 0) {
+    if (!parsed) {
+      console.error("❌ Could not parse Groq nutrition response:", text);
       return NextResponse.json(
         { error: "No nutrition data found for this food" },
         { status: 404 }
       );
     }
 
-    const item = foods[0];
-
     const result = {
-      calories: Math.round(item.nf_calories || 0),
-      protein: Math.round(item.nf_protein || 0),
-      fat: Math.round(item.nf_total_fat || 0),
-      carbs: Math.round(item.nf_total_carbohydrate || 0),
+      calories: Math.round(Number(parsed.calories) || 0),
+      protein: Math.round(Number(parsed.protein) || 0),
+      fat: Math.round(Number(parsed.fat) || 0),
+      carbs: Math.round(Number(parsed.carbs) || 0),
     };
 
     return NextResponse.json(result, { status: 200 });
   } catch (error: any) {
-    console.error(
-      "❌ Nutrition API Error:",
-      error?.response?.data || error.message
-    );
-
+    console.error("❌ Nutrition API Error:", error?.message || error);
     return NextResponse.json(
-      {
-        error: "Failed to analyze nutrition",
-        details: error?.response?.data || error.message,
-      },
+      { error: "Failed to analyze nutrition", details: error?.message },
       { status: 500 }
     );
   }

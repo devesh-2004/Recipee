@@ -22,7 +22,7 @@ export default function RootLayout({
         ❗ NO HEADER HERE  
         Header must be loaded only on dashboard pages (after login)
       */}
-
+      
       <body className="min-h-screen bg-background text-foreground antialiased">
         <SessionProviderWrapper>{children}</SessionProviderWrapper>
       </body>

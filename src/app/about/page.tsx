@@ -1,13 +1,12 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import Particles from "react-tsparticles";
-import { loadFull } from "tsparticles"; // ✅ Keep this import, works fine now
+import Particles, { initParticlesEngine } from "@tsparticles/react";
+import { loadSlim } from "@tsparticles/slim";
 import { ChefHat, Sparkles, History, Target, Lightbulb } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
@@ -15,6 +14,15 @@ const About = () => {
 
    const { data: session } = useSession();
   const router = useRouter();
+  const [init, setInit] = useState(false);
+
+  useEffect(() => {
+    initParticlesEngine(async (engine) => {
+      await loadSlim(engine);
+    }).then(() => {
+      setInit(true);
+    });
+  }, []);
 
   const handleCTA = () => {
     if (session) {
@@ -54,40 +62,28 @@ const About = () => {
     []
   );
 
-  // ✅ Fixed Particle Initialization (No crash)
-  const particlesInit = useCallback(async (engine: any) => {
-    try {
-      // Try to load full engine if supported
-      if (typeof loadFull === "function") {
-        await loadFull(engine);
-      } else if (engine && typeof engine.refresh === "function") {
-        // Fallback safe refresh
-        await engine.refresh();
-      }
-    } catch (err) {
-      console.warn("Particle engine load skipped:", err);
-    }
-  }, []);
+
 
   return (
     <div className="relative min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-white overflow-hidden">
       {/* 🔹 Animated Background */}
-      <Particles
-        id="tsparticles"
-        init={particlesInit}
-        options={{
-          background: { color: "transparent" },
-          fpsLimit: 60,
-          particles: {
-            number: { value: 35 },
-            color: { value: "#f97316" },
-            opacity: { value: 0.25 },
-            size: { value: 2.8 },
-            move: { enable: true, speed: 1, random: true },
-          },
-        }}
-        className="absolute inset-0 z-0"
-      />
+      {init && (
+        <Particles
+          id="tsparticles"
+          options={{
+            background: { color: "transparent" },
+            fpsLimit: 60,
+            particles: {
+              number: { value: 35 },
+              color: { value: "#f97316" },
+              opacity: { value: 0.25 },
+              size: { value: 2.8 },
+              move: { enable: true, speed: 1, random: true },
+            },
+          }}
+          className="absolute inset-0 z-0"
+        />
+      )}
 
       {/* 🔸 Hero Section */}
       <motion.section

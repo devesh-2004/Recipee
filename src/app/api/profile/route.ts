@@ -1,6 +1,7 @@
 // src/app/api/profile/route.ts
 import { NextResponse } from "next/server";
 import clientPromise from "@/lib/mongodb";
+import { getCurrentUser, unauthorized, forbidden, resolveTargetEmail } from "@/lib/rbac";
 
 const DB_NAME = "cookaro";
 const COLLECTION = "profiles";
@@ -22,16 +23,16 @@ function cleanProfile(user: any) {
 }
 
 /* ============================================================
-   GET — fetch profile by email
+   GET — fetch profile (own profile; admins may pass ?email=)
    ============================================================ */
 export async function GET(req: Request) {
   try {
-    const { searchParams } = new URL(req.url);
-    const email = searchParams.get("email");
+    const caller = await getCurrentUser();
+    if (!caller) return unauthorized();
 
-    if (!email) {
-      return NextResponse.json({ error: "Email required" }, { status: 400 });
-    }
+    const { searchParams } = new URL(req.url);
+    const email = resolveTargetEmail(caller, searchParams.get("email"));
+    if (!email) return forbidden();
 
     const client = await clientPromise;
     const db = client.db(DB_NAME);
@@ -53,16 +54,18 @@ export async function GET(req: Request) {
 }
 
 /* ============================================================
-   POST — create or update profile
+   POST — create or update profile (own profile; admins any email)
    ============================================================ */
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { email, age, gender, height, weight, activityLevel } = body;
+    const caller = await getCurrentUser();
+    if (!caller) return unauthorized();
 
-    if (!email) {
-      return NextResponse.json({ error: "Email is required" }, { status: 400 });
-    }
+    const body = await req.json();
+    const { age, gender, height, weight, activityLevel } = body;
+
+    const email = resolveTargetEmail(caller, body.email);
+    if (!email) return forbidden();
 
     const now = new Date();
 

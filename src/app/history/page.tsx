@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Trash2, Copy, Star } from "lucide-react";
@@ -30,10 +31,11 @@ interface HistoryItem {
 const ITEMS_PER_PAGE = 10;
 
 export default function HistoryPage() {
+  const { data: session, status } = useSession();
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [filteredHistory, setFilteredHistory] = useState<HistoryItem[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -60,9 +62,9 @@ export default function HistoryPage() {
         setFilteredHistory(updated);
 
         setHasMore(data.length === ITEMS_PER_PAGE);
-      } catch (err) {
         toast.error("Unable to load history.");
       } finally {
+        setLoading(false);
         setLoading(false);
       }
     },
@@ -71,21 +73,22 @@ export default function HistoryPage() {
 
   // Fetch first load
   useEffect(() => {
-    const userData = localStorage.getItem("user");
-    if (!userData) return;
+    if (status === "loading") return;
+    const email = session?.user?.email;
+    if (!email) return;
 
-    const { email } = JSON.parse(userData);
     fetchHistory(email, true);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, status]);
 
   // Fetch additional pages
   useEffect(() => {
     if (page === 1) return;
-    const userData = localStorage.getItem("user");
-    if (!userData) return;
+    const email = session?.user?.email;
+    if (!email) return;
 
-    const { email } = JSON.parse(userData);
     fetchHistory(email);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
   const loadMore = () => setPage((prev) => prev + 1);
@@ -110,10 +113,8 @@ export default function HistoryPage() {
   // Clear All History
   // =====================================================
   const clearAllHistory = async () => {
-    const userData = localStorage.getItem("user");
-    if (!userData) return;
-
-    const { email } = JSON.parse(userData);
+    const email = session?.user?.email;
+    if (!email) return;
 
     try {
       await axios.delete(`/api/meal-history?all=true&email=${email}`);

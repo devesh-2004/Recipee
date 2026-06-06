@@ -29,12 +29,12 @@ const Footer = () => {
           <br className="sm:hidden" />
           Crafted with <span className="text-red-500">❤️</span> by{" "}
           <a
-            href="https://manojdev.vercel.app/"
+            href="https://devesh-purohit-portfolio.vercel.app/"
             target="_blank"
             rel="noopener noreferrer"
             className="font-semibold text-orange-300 hover:underline hover:text-orange-400 transition-colors duration-200"
           >
-            Manoj Tarad
+            Devesh Purohit
           </a>
         </p>
 
@@ -44,7 +44,7 @@ const Footer = () => {
           aria-label="Social media links"
         >
           <a
-            href="https://github.com/ManojTarad65"
+            href="https://github.com/devesh-2004"
             target="_blank"
             rel="noopener noreferrer"
             className="hover:scale-110 transition-transform duration-200"
@@ -56,7 +56,7 @@ const Footer = () => {
             />
           </a>
           <a
-            href="https://linkedin.com/in/manoj-tarad-0b779625a"
+            href="https://www.linkedin.com/in/devesh-purohit-06557b245/"
             target="_blank"
             rel="noopener noreferrer"
             className="hover:scale-110 transition-transform duration-200"
@@ -68,7 +68,7 @@ const Footer = () => {
             />
           </a>
           <a
-            href="https://manojdev.vercel.app/"
+            href="https://devesh-purohit-portfolio.vercel.app/"
             target="_blank"
             rel="noopener noreferrer"
             className="hover:scale-110 transition-transform duration-200"
@@ -86,5 +86,3 @@ const Footer = () => {
 };
 
 export default Footer;
-
-
