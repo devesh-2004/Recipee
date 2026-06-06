@@ -1,4 +1,13 @@
-export { default } from "next-auth/middleware";
+import { withAuth } from "next-auth/middleware";
+
+// Wrap the request with NextAuth's middleware. Calling `withAuth(...)` returns
+// a concrete middleware function that Next.js 16 can statically detect as the
+// default export. A user without a valid JWT is redirected to `/login`.
+export default withAuth({
+    pages: {
+        signIn: "/login",
+    },
+});
 
 export const config = {
     matcher: [
